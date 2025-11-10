@@ -1,6 +1,6 @@
+import logging
 import os
 from datetime import datetime
-
 from dotenv import load_dotenv
 from flask import (
     Flask,
@@ -27,6 +27,10 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "cambia-esta-clave")
 
 db = SQLAlchemy(app)
+
+
+logging.basicConfig(level=logging.INFO)
+app.logger.setLevel(logging.INFO)
 
 
 class Conversation(db.Model):
@@ -272,8 +276,10 @@ def new_conversation():
 @app.post("/webhook/green")
 def green_webhook():
     payload = request.get_json(silent=True) or {}
+    print("Payload recibido:", payload, flush=True)
     app.logger.info("Webhook recibido: type=%s id=%s", payload.get("typeWebhook"), payload.get("idMessage"))
     webhook_type = payload.get("typeWebhook")
+    
 
     if webhook_type == "incomingMessageReceived":
         return handle_incoming_message(payload)
