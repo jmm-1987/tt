@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Conversaciones | Green Inbox{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Conversaciones abiertas</h1>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('new_conversation') }}" class="btn btn-success">Nueva conversación</a>
+        <a href="{{ url_for('health_check') }}" class="btn btn-outline-secondary btn-sm">Health check</a>
+    </div>
+</div>
+
+{% if conversations %}
+    <div class="list-group shadow-sm">
+        {% for conversation in conversations %}
+            {% set last = conversation.last_message() %}
+            <a class="list-group-item list-group-item-action d-flex justify-content-between" href="{{ url_for('conversation_detail', conversation_id=conversation.id) }}">
+                <div>
+                    <div class="fw-semibold">
+                        {{ conversation.contact_name or conversation.contact_number|chat_display }}
+                    </div>
+                    <div class="text-muted small text-truncate" style="max-width: 420px;">
+                        {% if last %}
+                            {% if last.sender_type == "agent" %}
+                                Tú:
+                            {% else %}
+                                Cliente:
+                            {% endif %}
+                            {{ last.message_text }}
+                        {% else %}
+                            Sin mensajes todavía
+                        {% endif %}
+                    </div>
+                </div>
+                <small class="text-muted">{{ conversation.updated_at.strftime("%d/%m/%Y %H:%M") }}</small>
+            </a>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        Aún no hay conversaciones. Puedes iniciarlas con el botón <strong>Nueva conversación</strong> o esperar a que lleguen mensajes desde WhatsApp.
+    </div>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Error | Green Inbox{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+    <h1 class="display-6 mb-3">Ups, algo salió mal</h1>
+    <p class="lead">{{ message }}</p>
+    <a class="btn btn-primary mt-3" href="{{ url_for('dashboard') }}">Volver al inicio</a>
+</div>
+{% endblock %}
+

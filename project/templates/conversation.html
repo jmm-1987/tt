@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ conversation.contact_name or conversation.contact_number|chat_display }} | Green Inbox{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-link ps-0">&larr; Volver</a>
+</div>
+
+<div class="card shadow-sm conversation-card">
+    <div class="card-header">
+        <h2 class="h5 mb-0">{{ conversation.contact_name or conversation.contact_number|chat_display }}</h2>
+        <small class="text-muted">Última actualización: {{ conversation.updated_at.strftime("%d/%m/%Y %H:%M") }}</small>
+    </div>
+    <div class="card-body conversation-thread">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message-bubble {% if message.sender_type == 'agent' %}message-agent{% else %}message-customer{% endif %}">
+                    <div class="message-meta">
+                        {% if message.sender_type == 'agent' %}
+                            <span class="badge bg-primary">Agente</span>
+                        {% else %}
+                            <span class="badge bg-success">Cliente</span>
+                        {% endif %}
+                        <small class="text-muted">{{ message.sent_at.strftime("%d/%m/%Y %H:%M") }}</small>
+                    </div>
+                    <div class="message-text">{{ message.message_text | nl2br }}</div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted text-center">No hay mensajes en esta conversación.</p>
+        {% endif %}
+    </div>
+    <div class="card-footer">
+        <form method="post" class="d-flex gap-2">
+            <textarea name="message" class="form-control" rows="2" placeholder="Escribe tu respuesta..." required></textarea>
+            <button class="btn btn-success" type="submit">Enviar</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

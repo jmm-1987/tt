@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva conversación | Green Inbox{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <h1 class="h3 mb-4">Iniciar nueva conversación</h1>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label for="contact_number" class="form-label">Número de WhatsApp</label>
+                        <input type="text" class="form-control" id="contact_number" name="contact_number" placeholder="+34900111222" required>
+                        <div class="form-text">Introduce el número completo con prefijo internacional.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contact_name" class="form-label">Nombre del contacto (opcional)</label>
+                        <input type="text" class="form-control" id="contact_name" name="contact_name" placeholder="Cliente Demo">
+                    </div>
+                    <div class="mb-3">
+                        <label for="initial_message" class="form-label">Mensaje inicial (opcional)</label>
+                        <textarea class="form-control" id="initial_message" name="initial_message" rows="3" placeholder="Hola {{nombre}}..."></textarea>
+                        <div class="form-text">Si lo dejas vacío, se creará la conversación sin enviar mensaje.</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">Cancelar</a>
+                        <button type="submit" class="btn btn-success">Crear conversación</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
