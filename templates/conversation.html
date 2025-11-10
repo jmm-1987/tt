@@ -40,8 +40,15 @@
         {% endif %}
     </div>
     <div class="card-footer">
-        <form method="post" class="d-flex gap-2">
-            <textarea name="message" class="form-control" rows="2" placeholder="Escribe tu respuesta..." required></textarea>
+        <form method="post" class="d-flex gap-2" id="message-form">
+            <textarea
+                name="message"
+                class="form-control"
+                rows="2"
+                placeholder="Escribe tu respuesta..."
+                required
+                id="message-input"
+            ></textarea>
             <button class="btn btn-success" type="submit">Enviar</button>
         </form>
     </div>
@@ -115,6 +122,18 @@
     }
 
     setInterval(fetchMessages, 5000);
+
+    const form = document.getElementById("message-form");
+    const textarea = document.getElementById("message-input");
+
+    if (form && textarea) {
+        textarea.addEventListener("keydown", function(event) {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                form.requestSubmit();
+            }
+        });
+    }
 })();
 </script>
 {% endblock %}
