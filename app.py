@@ -75,6 +75,7 @@ class Message(db.Model):
 GREEN_API_INSTANCE_ID = os.environ.get("GREEN_API_INSTANCE_ID")
 GREEN_API_API_TOKEN = os.environ.get("GREEN_API_API_TOKEN")
 GREEN_API_BASE_URL = os.environ.get("GREEN_API_BASE_URL", "https://api.green-api.com")
+GREEN_API_TIMEOUT = 15
 
 
 def ensure_database():
@@ -163,9 +164,25 @@ def send_whatsapp_message(chat_id: str, message_text: str) -> requests.Response:
     url = f"{GREEN_API_BASE_URL}/waInstance{GREEN_API_INSTANCE_ID}/sendMessage/{GREEN_API_API_TOKEN}"
     payload = {"chatId": normalize_chat_id(chat_id), "message": message_text}
 
-    response = requests.post(url, json=payload, timeout=15)
+    response = requests.post(url, json=payload, timeout=GREEN_API_TIMEOUT)
     response.raise_for_status()
     return response
+
+
+def fetch_green_contacts() -> list[dict]:
+    if not (GREEN_API_INSTANCE_ID and GREEN_API_API_TOKEN):
+        raise RuntimeError(
+            "Faltan credenciales de Green API. Define GREEN_API_INSTANCE_ID y GREEN_API_API_TOKEN en .env"
+        )
+
+    url = f"{GREEN_API_BASE_URL}/waInstance{GREEN_API_INSTANCE_ID}/getContacts/{GREEN_API_API_TOKEN}"
+    response = requests.get(url, timeout=GREEN_API_TIMEOUT)
+    response.raise_for_status()
+    data = response.json()
+    contacts = data.get("contacts") if isinstance(data, dict) else None
+    if contacts is None:
+        raise ValueError("Respuesta inesperada desde Green API al solicitar contactos")
+    return contacts
 
 
 def extract_incoming_text(message_data: dict) -> tuple[str | None, str]:
@@ -502,6 +519,32 @@ def api_conversation_messages(conversation_id: int):
             else "",
         }
     )
+
+
+@app.get("/api/contacts")
+def api_contacts():
+    try:
+        contacts = fetch_green_contacts()
+    except requests.exceptions.HTTPError as exc:
+        app.logger.error("Error HTTP al obtener contactos: %s", exc)
+        return jsonify({"error": f"No fue posible obtener los contactos ({exc.response.status_code})"}), 502
+    except Exception as exc:  # noqa: BLE001
+        app.logger.error("Error al obtener contactos: %s", exc)
+        return jsonify({"error": f"No fue posible obtener los contactos: {exc}"}), 500
+
+    normalized = []
+    for contact in contacts:
+        normalized.append(
+            {
+                "id": contact.get("id"),
+                "name": contact.get("name"),
+                "type": contact.get("type"),
+                "category": contact.get("category"),
+                "chat_id": contact.get("id"),
+            }
+        )
+
+    return jsonify({"contacts": normalized})
 
 
 @app.errorhandler(Exception)

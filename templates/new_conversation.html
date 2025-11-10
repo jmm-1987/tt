@@ -11,7 +11,15 @@
                 <form method="post">
                     <div class="mb-3">
                         <label for="contact_number" class="form-label">Número de WhatsApp</label>
-                        <input type="text" class="form-control" id="contact_number" name="contact_number" placeholder="+34900111222" required>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="contact_number"
+                            name="contact_number"
+                            placeholder="+34900111222"
+                            value="{{ request.args.get('number', '') }}"
+                            required
+                        >
                         <div class="form-text">Introduce el número completo con prefijo internacional.</div>
                     </div>
                     <div class="mb-3">
@@ -32,5 +40,17 @@
         </div>
     </div>
 </div>
+<script>
+(function() {
+    const contactInput = document.getElementById("contact_number");
+    if (!contactInput) {
+        return;
+    }
+
+    contactInput.addEventListener("blur", () => {
+        contactInput.value = contactInput.value.trim();
+    });
+})();
+</script>
 {% endblock %}
 

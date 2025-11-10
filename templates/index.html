@@ -8,6 +8,40 @@
     <div class="d-flex gap-2">
         <a href="{{ url_for('new_conversation') }}" class="btn btn-success">Nueva conversación</a>
         <a href="{{ url_for('health_check') }}" class="btn btn-outline-secondary btn-sm">Health check</a>
+        <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#contactsModal">
+            Contactos
+        </button>
+    </div>
+</div>
+<div class="modal fade" id="contactsModal" tabindex="-1" aria-labelledby="contactsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contactsModalLabel">Contactos guardados</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="contacts-loading" class="text-center my-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+                <div id="contacts-error" class="alert alert-danger d-none"></div>
+                <div id="contacts-table-wrapper" class="table-responsive d-none">
+                    <table class="table table-striped table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th scope="col">Nombre</th>
+                                <th scope="col">Chat ID</th>
+                                <th scope="col">Tipo</th>
+                                <th scope="col">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contacts-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -137,6 +171,80 @@
     }
 
     setInterval(fetchConversations, 5000);
+    const contactsModal = document.getElementById("contactsModal");
+    if (!contactsModal) {
+        return;
+    }
+
+    const contactsLoading = document.getElementById("contacts-loading");
+    const contactsError = document.getElementById("contacts-error");
+    const contactsWrapper = document.getElementById("contacts-table-wrapper");
+    const contactsTableBody = document.getElementById("contacts-table-body");
+
+    function renderContacts(contacts) {
+        contactsTableBody.innerHTML = "";
+
+        contacts.forEach((contact) => {
+            const row = document.createElement("tr");
+
+            const nameCell = document.createElement("td");
+            nameCell.textContent = contact.name || contact.chat_id || "Sin nombre";
+
+            const idCell = document.createElement("td");
+            idCell.textContent = contact.chat_id || "";
+
+            const typeCell = document.createElement("td");
+            typeCell.textContent = contact.type || "-";
+
+            const actionsCell = document.createElement("td");
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "btn btn-sm btn-outline-success";
+            button.textContent = "Abrir";
+            button.addEventListener("click", () => {
+                const phone = contact.chat_id ? contact.chat_id.replace(/@.*/, "") : "";
+                if (phone) {
+                    window.location.href = "{{ url_for('new_conversation') }}" + "?number=" + encodeURIComponent(phone);
+                } else {
+                    alert("No se puede iniciar conversación: falta el chatId");
+                }
+            });
+            actionsCell.appendChild(button);
+
+            row.appendChild(nameCell);
+            row.appendChild(idCell);
+            row.appendChild(typeCell);
+            row.appendChild(actionsCell);
+
+            contactsTableBody.appendChild(row);
+        });
+    }
+
+    contactsModal.addEventListener("show.bs.modal", function () {
+        contactsLoading.classList.remove("d-none");
+        contactsError.classList.add("d-none");
+        contactsWrapper.classList.add("d-none");
+
+        fetch("{{ url_for('api_contacts') }}")
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error("No se pudo obtener la lista de contactos");
+                }
+                return response.json();
+            })
+            .then((payload) => {
+                const contacts = Array.isArray(payload.contacts) ? payload.contacts : [];
+                renderContacts(contacts);
+                contactsWrapper.classList.remove("d-none");
+            })
+            .catch((error) => {
+                contactsError.textContent = error.message;
+                contactsError.classList.remove("d-none");
+            })
+            .finally(() => {
+                contactsLoading.classList.add("d-none");
+            });
+    });
 })();
 </script>
 {% endblock %}
