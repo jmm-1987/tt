@@ -11,8 +11,8 @@
     </div>
 </div>
 
-{% if conversations %}
-    <div class="list-group shadow-sm">
+<div id="conversation-list-wrapper" class="{% if not conversations %}d-none{% endif %}">
+    <div id="conversation-list" class="list-group shadow-sm">
         {% for conversation in conversations %}
             {% set last = conversation.last_message() %}
             {% set unread = conversation.unread_count() %}
@@ -41,10 +41,103 @@
             </a>
         {% endfor %}
     </div>
-{% else %}
-    <div class="alert alert-info">
-        Aún no hay conversaciones. Puedes iniciarlas con el botón <strong>Nueva conversación</strong> o esperar a que lleguen mensajes desde WhatsApp.
-    </div>
-{% endif %}
+</div>
+<div id="conversation-empty" class="alert alert-info {% if conversations %}d-none{% endif %}">
+    Aún no hay conversaciones. Puedes iniciarlas con el botón <strong>Nueva conversación</strong> o esperar a que lleguen mensajes desde WhatsApp.
+</div>
+<script>
+(function() {
+    const listWrapper = document.getElementById("conversation-list-wrapper");
+    const listElement = document.getElementById("conversation-list");
+    const emptyAlert = document.getElementById("conversation-empty");
+    if (!listElement) {
+        return;
+    }
+
+    const apiUrl = "{{ url_for('api_conversations') }}";
+
+    function renderConversations(items) {
+        if (!items.length) {
+            if (listWrapper) {
+                listWrapper.classList.add("d-none");
+            }
+            if (emptyAlert) {
+                emptyAlert.classList.remove("d-none");
+            }
+            listElement.innerHTML = "";
+            return;
+        }
+
+        if (listWrapper) {
+            listWrapper.classList.remove("d-none");
+        }
+        if (emptyAlert) {
+            emptyAlert.classList.add("d-none");
+        }
+
+        listElement.innerHTML = "";
+
+        items.forEach((item) => {
+            const link = document.createElement("a");
+            link.className = "list-group-item list-group-item-action d-flex justify-content-between";
+            link.href = item.url;
+
+            const left = document.createElement("div");
+
+            const title = document.createElement("div");
+            title.className = "fw-semibold";
+            title.textContent = item.display_name;
+
+            if (item.unread_count) {
+                const badge = document.createElement("span");
+                badge.className = "badge rounded-pill bg-danger ms-2";
+                badge.textContent = item.unread_count;
+                title.appendChild(badge);
+            }
+
+            const snippet = document.createElement("div");
+            snippet.className = "text-muted small text-truncate";
+            snippet.style.maxWidth = "420px";
+
+            if (item.last_message_text) {
+                const prefix = item.last_message_sender === "agent" ? "Tú: " : item.last_message_sender === "customer" ? "Cliente: " : "";
+                snippet.textContent = prefix + item.last_message_text;
+            } else {
+                snippet.textContent = "Sin mensajes todavía";
+            }
+
+            left.appendChild(title);
+            left.appendChild(snippet);
+
+            const time = document.createElement("small");
+            time.className = "text-muted";
+            time.textContent = item.updated_at_human || "";
+
+            link.appendChild(left);
+            link.appendChild(time);
+
+            listElement.appendChild(link);
+        });
+    }
+
+    function fetchConversations() {
+        fetch(apiUrl)
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error("No fue posible actualizar la bandeja");
+                }
+                return response.json();
+            })
+            .then((payload) => {
+                if (Array.isArray(payload.conversations)) {
+                    renderConversations(payload.conversations);
+                }
+            })
+            .catch((error) => console.error(error));
+    }
+
+    setInterval(fetchConversations, 5000);
+})();
+</script>
 {% endblock %}
 

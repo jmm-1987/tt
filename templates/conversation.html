@@ -10,9 +10,17 @@
 <div class="card shadow-sm conversation-card">
     <div class="card-header">
         <h2 class="h5 mb-0">{{ conversation.contact_name or conversation.contact_number|chat_display }}</h2>
-        <small class="text-muted">Última actualización: {{ conversation.updated_at.strftime("%d/%m/%Y %H:%M") }}</small>
+        <small class="text-muted" id="conversation-updated">
+            Última actualización: {{ conversation.updated_at.strftime("%d/%m/%Y %H:%M") }}
+        </small>
     </div>
-    <div class="card-body conversation-thread">
+    <div
+        class="card-body conversation-thread"
+        id="conversation-thread"
+        data-conversation-id="{{ conversation.id }}"
+        data-fetch-url="{{ url_for('api_conversation_messages', conversation_id=conversation.id) }}"
+        data-last-id="{{ (messages|last).id if messages else 0 }}"
+    >
         {% if messages %}
             {% for message in messages %}
                 <div class="message-bubble {% if message.sender_type == 'agent' %}message-agent{% else %}message-customer{% endif %}">
@@ -38,5 +46,76 @@
         </form>
     </div>
 </div>
+<script>
+(function() {
+    const thread = document.getElementById("conversation-thread");
+    if (!thread) {
+        return;
+    }
+
+    const fetchUrl = thread.dataset.fetchUrl;
+    let lastId = Number(thread.dataset.lastId || 0);
+    const updatedLabel = document.getElementById("conversation-updated");
+
+    function appendMessage(msg) {
+        const bubble = document.createElement("div");
+        bubble.className = "message-bubble " + (msg.sender_type === "agent" ? "message-agent" : "message-customer");
+
+        const meta = document.createElement("div");
+        meta.className = "message-meta";
+
+        const badge = document.createElement("span");
+        badge.className = "badge " + (msg.sender_type === "agent" ? "bg-primary" : "bg-success");
+        badge.textContent = msg.sender_type === "agent" ? "Agente" : "Cliente";
+
+        const timestamp = document.createElement("small");
+        timestamp.className = "text-muted";
+        timestamp.textContent = msg.sent_at_human;
+
+        meta.appendChild(badge);
+        meta.appendChild(timestamp);
+        bubble.appendChild(meta);
+
+        const text = document.createElement("div");
+        text.className = "message-text";
+        text.textContent = msg.message_text;
+        bubble.appendChild(text);
+
+        thread.appendChild(bubble);
+        thread.scrollTop = thread.scrollHeight;
+    }
+
+    function fetchMessages() {
+        const url = new URL(fetchUrl, window.location.origin);
+        url.searchParams.set("after_id", lastId);
+        url.searchParams.set("mark_read", "1");
+
+        fetch(url)
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error("Error al actualizar la conversación");
+                }
+                return response.json();
+            })
+            .then((payload) => {
+                if (Array.isArray(payload.messages) && payload.messages.length > 0) {
+                    payload.messages.forEach((message) => {
+                        appendMessage(message);
+                        lastId = Math.max(lastId, message.id);
+                    });
+                    thread.dataset.lastId = String(lastId);
+                }
+                if (payload.updated_at_human && updatedLabel) {
+                    updatedLabel.textContent = "Última actualización: " + payload.updated_at_human;
+                }
+            })
+            .catch((error) => {
+                console.error(error);
+            });
+    }
+
+    setInterval(fetchMessages, 5000);
+})();
+</script>
 {% endblock %}
 

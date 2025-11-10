@@ -106,6 +106,36 @@ def chat_display(value: str) -> str:
     return value
 
 
+def message_to_dict(message: Message) -> dict:
+    return {
+        "id": message.id,
+        "conversation_id": message.conversation_id,
+        "sender_type": message.sender_type,
+        "message_text": message.message_text,
+        "sent_at": message.sent_at.isoformat(),
+        "sent_at_human": message.sent_at.strftime("%d/%m/%Y %H:%M"),
+        "is_read": message.is_read,
+    }
+
+
+def conversation_to_dict(conversation: Conversation) -> dict:
+    last = conversation.last_message()
+    display_name = conversation.contact_name or conversation.contact_number
+    return {
+        "id": conversation.id,
+        "display_name": chat_display(display_name),
+        "contact_number": conversation.contact_number,
+        "last_message_text": last.message_text if last else "",
+        "last_message_sender": last.sender_type if last else None,
+        "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+        "updated_at_human": conversation.updated_at.strftime("%d/%m/%Y %H:%M")
+        if conversation.updated_at
+        else "",
+        "unread_count": conversation.unread_count(),
+        "url": url_for("conversation_detail", conversation_id=conversation.id),
+    }
+
+
 def normalize_chat_id(raw_number: str) -> str:
     """
     Devuelve el chatId en formato requerido por Green API.
@@ -424,6 +454,54 @@ def handle_outgoing_status(payload: dict):
     # Aquí podríamos guardar estados adicionales (entregado, leído, etc.).
     # Para mantener el ejemplo sencillo, solo devolvemos el estado.
     return jsonify({"status": "acknowledged", "detail": status}), 200
+
+
+@app.get("/api/conversations")
+def api_conversations():
+    conversations = Conversation.query.order_by(Conversation.updated_at.desc()).all()
+    data = [conversation_to_dict(conversation) for conversation in conversations]
+    return jsonify({"conversations": data})
+
+
+@app.get("/api/conversation/<int:conversation_id>/messages")
+def api_conversation_messages(conversation_id: int):
+    conversation = Conversation.query.get_or_404(conversation_id)
+    after_id = request.args.get("after_id", default=0, type=int)
+    mark_read = request.args.get("mark_read", default="0").lower() in {"1", "true", "yes"}
+
+    messages_query = (
+        Message.query.filter(
+            Message.conversation_id == conversation.id,
+            Message.id > after_id,
+        )
+        .order_by(Message.id.asc())
+    )
+    messages = messages_query.all()
+
+    changed = False
+    last_id = after_id
+    serialized = []
+    for message in messages:
+        serialized.append(message_to_dict(message))
+        last_id = message.id
+        if mark_read and message.sender_type == "customer" and not message.is_read:
+            message.is_read = True
+            changed = True
+
+    if changed:
+        db.session.commit()
+
+    return jsonify(
+        {
+            "messages": serialized,
+            "last_id": last_id,
+            "unread_count": conversation.unread_count(),
+            "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+            "updated_at_human": conversation.updated_at.strftime("%d/%m/%Y %H:%M")
+            if conversation.updated_at
+            else "",
+        }
+    )
 
 
 @app.errorhandler(Exception)
