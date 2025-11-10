@@ -15,10 +15,14 @@
     <div class="list-group shadow-sm">
         {% for conversation in conversations %}
             {% set last = conversation.last_message() %}
+            {% set unread = conversation.unread_count() %}
             <a class="list-group-item list-group-item-action d-flex justify-content-between" href="{{ url_for('conversation_detail', conversation_id=conversation.id) }}">
                 <div>
                     <div class="fw-semibold">
                         {{ conversation.contact_name or conversation.contact_number|chat_display }}
+                        {% if unread %}
+                            <span class="badge rounded-pill bg-danger ms-2">{{ unread }}</span>
+                        {% endif %}
                     </div>
                     <div class="text-muted small text-truncate" style="max-width: 420px;">
                         {% if last %}

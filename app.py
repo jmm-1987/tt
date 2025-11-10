@@ -15,6 +15,7 @@ from flask import (
 import requests
 from flask_sqlalchemy import SQLAlchemy
 from markupsafe import Markup
+from sqlalchemy import inspect, text
 from werkzeug.exceptions import HTTPException
 
 
@@ -49,11 +50,13 @@ class Conversation(db.Model):
         backref="conversation",
         lazy="dynamic",
         cascade="all, delete-orphan",
-        order_by="Message.sent_at.asc()",
     )
 
     def last_message(self):
-        return self.messages.order_by(Message.sent_at.desc()).first()
+        return self.messages.order_by(Message.sent_at.desc(), Message.id.desc()).first()
+
+    def unread_count(self):
+        return self.messages.filter_by(sender_type="customer", is_read=False).count()
 
 
 class Message(db.Model):
@@ -67,6 +70,7 @@ class Message(db.Model):
     message_text = db.Column(db.Text, nullable=False)
     sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     external_id = db.Column(db.String(128), index=True)
+    is_read = db.Column(db.Boolean, default=True, nullable=False, index=True)
 
 
 GREEN_API_INSTANCE_ID = os.environ.get("GREEN_API_INSTANCE_ID")
@@ -77,6 +81,13 @@ GREEN_API_BASE_URL = os.environ.get("GREEN_API_BASE_URL", "https://api.green-api
 def ensure_database():
     with app.app_context():
         db.create_all()
+        inspector = inspect(db.engine)
+        columns = {col["name"] for col in inspector.get_columns("messages")}
+        if "is_read" not in columns:
+            with db.engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE messages ADD COLUMN is_read BOOLEAN NOT NULL DEFAULT 1")
+                )
 
 
 @app.template_filter("nl2br")
@@ -196,6 +207,7 @@ def conversation_detail(conversation_id: int):
             message_text=message_text,
             sent_at=datetime.utcnow(),
             external_id=external_id,
+            is_read=True,
         )
         conversation.updated_at = datetime.utcnow()
 
@@ -204,7 +216,15 @@ def conversation_detail(conversation_id: int):
 
         return redirect(url_for("conversation_detail", conversation_id=conversation.id))
 
-    messages = conversation.messages.order_by(Message.sent_at.asc()).all()
+    unread_messages = conversation.messages.filter_by(
+        sender_type="customer", is_read=False
+    ).all()
+    if unread_messages:
+        for msg in unread_messages:
+            msg.is_read = True
+        db.session.commit()
+
+    messages = conversation.messages.order_by(Message.sent_at.asc(), Message.id.asc()).all()
     return render_template(
         "conversation.html",
         conversation=conversation,
@@ -263,6 +283,7 @@ def new_conversation():
                 message_text=initial_message,
                 sent_at=datetime.utcnow(),
                 external_id=external_id,
+                is_read=True,
             )
             db.session.add(message)
 
@@ -327,6 +348,7 @@ def handle_incoming_message(payload: dict):
         message_text=message_text,
         sent_at=sent_at,
         external_id=external_id,
+        is_read=False,
     )
 
     conversation.updated_at = datetime.utcnow()
@@ -370,6 +392,7 @@ def handle_outgoing_message(payload: dict):
 
     if existing_message:
         existing_message.sent_at = sent_at
+        existing_message.is_read = True
     else:
         message = Message(
             conversation_id=conversation.id,
@@ -377,6 +400,7 @@ def handle_outgoing_message(payload: dict):
             message_text=message_text,
             sent_at=sent_at,
             external_id=external_id,
+            is_read=True,
         )
         db.session.add(message)
 
