@@ -88,6 +88,12 @@ def ensure_database():
                 conn.execute(
                     text("ALTER TABLE messages ADD COLUMN is_read BOOLEAN NOT NULL DEFAULT 1")
                 )
+            app.logger.info("Columna is_read añadida a messages")
+
+
+@app.before_first_request
+def initialize_app():
+    ensure_database()
 
 
 @app.template_filter("nl2br")
@@ -450,4 +456,6 @@ def health_check():
 if __name__ == "__main__":
     ensure_database()
     app.run(debug=os.environ.get("FLASK_ENV") == "development", host="0.0.0.0", port=5000)
+else:
+    ensure_database()
 
