@@ -29,7 +29,6 @@ app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "cambia-esta-clave
 
 db = SQLAlchemy(app)
 
-
 logging.basicConfig(level=logging.INFO)
 app.logger.setLevel(logging.INFO)
 
@@ -89,11 +88,6 @@ def ensure_database():
                     text("ALTER TABLE messages ADD COLUMN is_read BOOLEAN NOT NULL DEFAULT 1")
                 )
             app.logger.info("Columna is_read añadida a messages")
-
-
-@app.before_first_request
-def initialize_app():
-    ensure_database()
 
 
 @app.template_filter("nl2br")
