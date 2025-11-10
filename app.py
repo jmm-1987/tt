@@ -123,6 +123,44 @@ def send_whatsapp_message(chat_id: str, message_text: str) -> requests.Response:
     return response
 
 
+def extract_incoming_text(message_data: dict) -> tuple[str | None, str]:
+    type_message = message_data.get("typeMessage")
+
+    if type_message == "textMessage":
+        return message_data.get("textMessageData", {}).get("textMessage"), "texto"
+    if type_message == "extendedTextMessage":
+        return message_data.get("extendedTextMessageData", {}).get("text"), "texto"
+    if type_message == "buttonMessage":
+        return message_data.get("buttonsMessageData", {}).get("bodyText"), "botón"
+    if type_message == "listMessage":
+        return message_data.get("listMessageData", {}).get("descriptionMessage"), "lista"
+    if type_message == "templateMessage":
+        return message_data.get("templateMessageData", {}).get("textMessage"), "plantilla"
+    if type_message == "quotedMessage":
+        quoted = message_data.get("quotedMessageData", {}).get("textMessage")
+        return quoted, "cita"
+
+    rich_types = {
+        "imageMessage": "Imagen",
+        "videoMessage": "Video",
+        "audioMessage": "Audio",
+        "documentMessage": "Documento",
+        "locationMessage": "Ubicación",
+        "contactMessage": "Contacto",
+        "stickerMessage": "Sticker",
+    }
+    if type_message in rich_types:
+        return f"[{rich_types[type_message]} recibido]", "adjunto"
+
+    # Fallback: buscar campos de texto comunes aunque typeMessage esté vacío.
+    for key in ("textMessageData", "extendedTextMessageData"):
+        maybe = message_data.get(key, {}).get("text") or message_data.get(key, {}).get("textMessage")
+        if maybe:
+            return maybe, "texto"
+
+    return None, type_message or "desconocido"
+
+
 @app.route("/")
 def dashboard():
     conversations = Conversation.query.order_by(Conversation.updated_at.desc()).all()
@@ -234,6 +272,7 @@ def new_conversation():
 @app.post("/webhook/green")
 def green_webhook():
     payload = request.get_json(silent=True) or {}
+    app.logger.info("Webhook recibido: type=%s id=%s", payload.get("typeWebhook"), payload.get("idMessage"))
     webhook_type = payload.get("typeWebhook")
 
     if webhook_type == "incomingMessageReceived":
@@ -249,14 +288,18 @@ def green_webhook():
 def handle_incoming_message(payload: dict):
     message_data = payload.get("messageData", {})
     sender_data = payload.get("senderData", {})
-    text_data = message_data.get("textMessageData") or {}
-    message_text = text_data.get("textMessage")
+    message_text, content_type = extract_incoming_text(message_data)
 
     if not message_text:
+        app.logger.warning("Mensaje entrante sin texto legible: %s", payload)
         return jsonify({"status": "ignored", "detail": "Mensaje sin texto"}), 200
 
-    chat_id = sender_data.get("chatId")
+    chat_id = sender_data.get("chatId") or message_data.get("chatId")
     contact_name = sender_data.get("senderName") or chat_id
+    if not chat_id:
+        app.logger.warning("Mensaje entrante sin chatId: %s", payload)
+        return jsonify({"status": "ignored", "detail": "Mensaje sin chatId"}), 200
+
     external_id = payload.get("idMessage")
     timestamp = payload.get("timestamp")
     sent_at = datetime.utcfromtimestamp(timestamp) if timestamp else datetime.utcnow()
@@ -285,7 +328,7 @@ def handle_incoming_message(payload: dict):
     db.session.add(message)
     db.session.commit()
 
-    return jsonify({"status": "received"}), 200
+    return jsonify({"status": "received", "content_type": content_type}), 200
 
 
 def handle_outgoing_message(payload: dict):
